@@ -1,0 +1,16 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - conda==24.7.1
+  - mamba
+  - numpy
+  - pip
+  - python==3.12.12
+  - pyyaml
+  - snakemake=9.13.7
+  - snakemake-executor-plugin-cluster-generic==1.0.9
+  - yaml
+  - pip:
+    - biopython

@@ -1,0 +1,34 @@
+pipeline_filepath: data/input
+study_period:
+  - 2020-09-06
+  - 2025-12-28
+output_dir:   "data/snakemake_output/"
+pipeline_dir: "data/input"
+reference_sites:
+  - Westpoort
+  - Amsterdam West
+  - Hilversum
+  - Lelystad
+  - Haarlem Schalkwijk
+  - Bosscherveld
+  - Houtrust
+  - Harnaschpolder
+lineage_bins:
+  Unknown: "#fde725"
+  A: "#440154"
+  B: "#440154"
+  B.1.221: "#fde725"
+  B.11: "#fde725"
+  B.1.1.7: "#5ec962"
+  B.1.617.2: "#21918c"
+  B.1.1.529: "#440154"
+  B.1.1.529.2: "#5ec962"
+  B.1.1.529.4: "#21918c"
+  B.1.1.529.5: "#3b528b"
+  B.1.1.529.2.75: "#3b528b"
+  B.1.1.529.2.86.1: "#21918c"
+  B.1.1.529.2.86.1.1.11.1: "#5ec962"
+  XBB: "#440154"
+  XEC: "#440154"
+  XFG: "#3b528b"
+  B.1.1.529.3.2: "#440154"

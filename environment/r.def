@@ -1,0 +1,20 @@
+Bootstrap: docker
+
+From: continuumio/miniconda3
+
+%post
+
+    conda create -n main -c conda-forge mamba==1.5.0 
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate main
+    
+    mamba install  -c conda-forge -c bioconda r-base r-ape r-tidyverse r-yaml r-readr r-tibble r-purrr r-stringr r-ggplot2 r-cowplot r-ggpubr r-viridis r-writexl r-jsonlite r-feather r-arrow    
+    
+    Rscript -e 'if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager"); BiocManager::install("ggtree")'
+
+    
+    . /opt/conda/etc/profile.d/conda.sh
+
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
+    echo "conda activate main" >>  $SINGULARITY_ENVIRONMENT
+

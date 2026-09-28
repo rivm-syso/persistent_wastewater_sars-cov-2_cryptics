@@ -1,0 +1,13 @@
+Bootstrap: docker
+
+From: continuumio/miniconda3
+
+%post
+    conda create -n main -c conda-forge mamba==1.5.0 
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate main
+    
+    mamba install -c bioconda -c conda-forge augur=33.0.0
+    . /opt/conda/etc/profile.d/conda.sh
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> $SINGULARITY_ENVIRONMENT
+    echo "conda activate main" >>  $SINGULARITY_ENVIRONMENT

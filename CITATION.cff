@@ -1,0 +1,20 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Software: Persistent detection of two genetically and
+  geographically distinct cryptic SARS-CoV-2 lineages in the
+  Netherlands
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Auke
+    family-names: Haver
+    email: auke.haver@rivm.nl
+    affiliation: RIVM
+    orcid: 'https://orcid.org/0000-0002-6711-2205'
+repository-code: 'https://github.com/rivm-syso/persistent_wastewater_sars-cov-2_cryptics'
+license: AGPL-1.0-or-later

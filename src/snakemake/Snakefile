@@ -1,0 +1,219 @@
+inputdir=config['inputdir']
+outputdir=config['outputdir']
+
+output_files = config['outputfiles']
+
+def get_freyja_files(wildcards):
+
+    return [
+        f"{outputdir}/{wildcards.lineage}_{wildcards.analysis}/freyja_{wildcards.type}/{sample}_lineages.tsv"
+        for sample in config['analyses']['freyja_samples'][wildcards.analysis][wildcards.lineage]
+    ]
+
+rule all:
+    input:
+        output_files
+
+rule augur:
+    input:
+        sequences = f"{inputdir}/{{lineage}}_{{analysis}}/sequences.fasta",
+        metadata  = f"{inputdir}/{{lineage}}_{{analysis}}/metadata.tsv",
+        reference = config["reference_genome"]
+    output:
+        index        = temp(f"{outputdir}/{{lineage}}_{{analysis}}/index.tsv"),
+        alignment    = temp(f"{outputdir}/{{lineage}}_{{analysis}}/align.fasta"),
+        splits       = temp(f"{outputdir}/{{lineage}}_{{analysis}}/align-delim.fasta.splits.nex"),
+        contree      = temp(f"{outputdir}/{{lineage}}_{{analysis}}/align-delim.fasta.contree"),
+        insertions   = temp(f"{outputdir}/{{lineage}}_{{analysis}}/align.fasta.insertions.csv"),
+        tree         =      f"{outputdir}/{{lineage}}_{{analysis}}/tree.nwk",
+        refined_tree =      f"{outputdir}/{{lineage}}_{{analysis}}/refined_tree.nwk",
+        refined_data =      f"{outputdir}/{{lineage}}_{{analysis}}/refined_node_data.json",
+        data         =      f"{outputdir}/{{lineage}}_{{analysis}}/ancestral_data.json",
+        sequences    =      f"{outputdir}/{{lineage}}_{{analysis}}/ancestral_seq.fasta"
+    log:
+        f"{outputdir}/{{lineage}}_{{analysis}}/augur.log"
+
+    params:
+        seed = 1,
+        directory = lambda wildcards: (
+            f"{outputdir}/{wildcards.lineage}_{wildcards.analysis}/treetime"
+        )
+    singularity:
+        config["containers"]["augur"]
+    resources:
+        mem_mb     = 12000,
+        runtime_min = 600
+    threads:
+        1
+    shell:
+        """
+        set -eo pipefail
+        
+        augur index \
+            --sequences {input.sequences} \
+            --output {output.index} \
+            > {log} 2>&1
+
+        augur align \
+            --sequences {input.sequences} \
+            --reference-sequence {input.reference} \
+            --remove-reference \
+            --fill-gaps \
+            --output {output.alignment}
+
+        augur tree \
+            --alignment {output.alignment} \
+            --method 'iqtree' \
+            --override-default-args \
+            --tree-builder-args="-B 1000" \
+            --output {output.tree} \
+            >> {log} 2>&1
+
+        augur refine \
+            --tree {output.tree} \
+            --alignment {output.alignment} \
+            --metadata {input.metadata} \
+            --output-tree {output.refined_tree} \
+            --output-node-data {output.refined_data} \
+            --timetree \
+            --coalescent opt \
+            --date-confidence \
+            --date-inference marginal \
+            --root 'least-squares' \
+            >> {log} 2>&1
+
+        augur ancestral \
+            --tree {output.refined_tree} \
+            --alignment {output.alignment} \
+            --seed {params.seed} \
+            --root-sequence {input.reference} \
+            --output-node-data {output.data} \
+            --output-sequences {output.sequences} \
+            >> {log} 2>&1
+        """
+
+rule generate_new_barcodes:
+    """
+    Generate new barcodes from augur trees
+    """
+    input:
+        ancestral = rules.augur.output.data,
+        tree      = rules.augur.output.refined_tree,
+        node      = rules.augur.output.refined_data,
+        barcodes  = config['original_barcodes'],
+        sites     = config['problematic_sites']
+    output:
+        barcodes_known    = temp(f"{outputdir}/{{lineage}}_{{analysis}}/barcodes_known.feather"),
+        barcodes_full     = temp(f"{outputdir}/{{lineage}}_{{analysis}}/barcodes_full.feather"),
+        selected_nodes    = f"{outputdir}/{{lineage}}_{{analysis}}/selected_nodes.txt",
+        cryptic_mutations = f"{outputdir}/{{lineage}}_{{analysis}}/cryptic_mutations.tsv"
+    singularity:
+        config['containers']['renv']
+    params:
+        script = config['barcode_gen_script']
+    log:
+        f"{outputdir}/{{lineage}}_{{analysis}}/barcodes.log"
+    resources:
+        mem_mb     = 12000,
+        runtime_min = 60
+    threads:
+        1
+    shell:
+        """
+        Rscript              {params.script} \
+        --ancestral          {input.ancestral} \
+        --tree               {input.tree} \
+        --node               {input.node} \
+        --barcodes           {input.barcodes} \
+        --problematic_sites  {input.sites} \
+        --new_barcodes_full  {output.barcodes_full} \
+        --selected_nodes     {output.selected_nodes} \
+        --cryptic_mutations  {output.cryptic_mutations} \
+        --new_barcodes_known {output.barcodes_known} > {log} 2>&1
+        """
+        
+rule merge_barcodes:
+    """
+    Combine barcodes into one barcode file
+    """
+    input:
+        barcodes_known_B_11    = f"{outputdir}/B.11_default/barcodes_known.feather",
+        barcodes_full_B_11     = f"{outputdir}/B.11_default/barcodes_full.feather",
+        barcodes_known_B_1_221 = f"{outputdir}/B.1.221_default/barcodes_known.feather",
+        barcodes_full_B_1_221  = f"{outputdir}/B.1.221_default/barcodes_full.feather"
+    output:
+        barcodes_known    = f"{outputdir}/merged_default/barcodes_known.feather",
+        barcodes_full     = f"{outputdir}/merged_default/barcodes_full.feather"
+    singularity:
+        config['containers']['renv']
+    params:
+        script = config['barcode_merge_script']
+    log:
+        f"{outputdir}/merged/barcodes.log"
+    resources:
+        mem_mb     = 12000,
+        runtime_min = 60
+    threads:
+        1
+    shell:
+        """
+        Rscript         {params.script} \
+        --B.11_full     {input.barcodes_full_B_11} \
+        --B.11_known    {input.barcodes_known_B_11} \
+        --B.1.221_full  {input.barcodes_full_B_1_221} \
+        --B.1.221_known {input.barcodes_known_B_1_221} \
+        --merged_full   {output.barcodes_full} \
+        --merged_known  {output.barcodes_known} > {log} 2>&1
+        """
+        
+  
+rule run_freyja:
+    """
+    Rerun freyja with new barcodes
+    """
+    input:
+        barcodes = f"{outputdir}/{{lineage}}_{{analysis}}/barcodes_{{type}}.feather",
+        variants = f"{config['sample_variants_dir']}/{{sample}}_ivar.tsv",
+        depths   = f"{config['sample_depths_dir']}/{{sample}}.tsv"
+    output:
+        lineages = temp(f"{outputdir}/{{lineage}}_{{analysis}}/freyja_{{type}}/{{sample}}_lineages.tsv")
+    singularity:
+        config['containers']['freyja']
+    params: 
+        "--covcut 10 --depthcutoff 0 --eps 0.001"
+    resources:
+        mem_mb     = 12000,
+        runtime_min = 60
+    threads:
+        1
+    shell:
+        """
+        freyja demix \
+        {params} \
+        --output {output.lineages} \
+        --barcodes {input.barcodes} \
+        {input.variants} {input.depths}
+        """
+  
+rule merge_freyja:
+    """
+    Merge freyja results
+    """
+    input:
+        get_freyja_files
+    output:
+        f"{outputdir}/{{lineage}}_{{analysis}}/barcodes_{{type}}.tsv",
+    singularity:
+        config['containers']['renv']
+    params: 
+        script = config['freyja_merge_script']
+    resources:
+        mem_mb     = 12000,
+        runtime_min = 60
+    threads:
+        1
+    shell:
+        """
+        Rscript {params.script} {output} {input}
+        """
+
